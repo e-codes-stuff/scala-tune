@@ -1,5 +1,7 @@
 //! A parser for the [Scala](https://www.huygens-fokker.org/scala/) file format.
 
+use std::{path::Path, fs::File, io::{Read, BufReader}};
+
 use nom::{
     bytes::streaming::{tag, take_until},
     character::streaming::{newline, space0},
@@ -47,6 +49,19 @@ impl Scale {
             Ok(s) => Ok(s.1),
             Err(e) => Err(Error(e.to_string())),
         }
+    }
+
+    pub fn open(path: impl AsRef<Path>) -> Result<Scale, Error> {
+        use encoding_rs::mem::decode_latin1;
+
+        let mut file = BufReader::new(File::open(path).map_err(|e| Error(e.to_string()))?);
+        let mut contents = Vec::new();
+
+        file.read_to_end(&mut contents).map_err(|e| Error(e.to_string()))?;
+
+        let text = decode_latin1(&contents);
+
+        Self::from_str(&text)
     }
 }
 
@@ -120,9 +135,9 @@ fn take_line(i: &str) -> IResult<&str, &str> {
 
 #[cfg(test)]
 mod tests {
-    use std::{io::Read, path::PathBuf};
+    use std::path::PathBuf;
 
-    use crate::parse_scala;
+    use crate::Scale;
 
     #[test]
     fn test_all_scl() {
@@ -145,12 +160,10 @@ mod tests {
             .collect();
 
         for path in paths {
-            let mut text = String::new();
-            std::io::BufReader::new(std::fs::File::open(path).unwrap())
-                .read_to_string(&mut text)
-                .unwrap();
+            let scale = Scale::open(path);
 
-            assert!(parse_scala(&text).is_ok());
+            // dbg!(&scale);
+            assert!(scale.is_ok())
         }
     }
 }
